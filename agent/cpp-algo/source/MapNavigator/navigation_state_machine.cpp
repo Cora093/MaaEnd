@@ -7,7 +7,9 @@
 #include <thread>
 #include <utility>
 
+#include <MaaFramework/MaaAPI.h>
 #include <MaaUtils/Logger.h>
+#include <meojson/json.hpp>
 
 #include "action_executor.h"
 #include "action_wrapper.h"
@@ -20,6 +22,8 @@
 #include "route_tracker.h"
 #include "semantic_nodes.h"
 #include "steering_controller.h"
+
+#include "../utils.h"
 
 namespace mapnavigator
 {
@@ -332,6 +336,10 @@ bool NavigationStateMachine::Run()
         StopMotion();
         return false;
     }
+
+    // Absorb the collect-OCR cold start here, while the avatar is still stopped after Bootstrap and before
+    // the first forward press, so it can never land on a while-walking scan tick and freeze the thread.
+    PreWarmCollectOcr();
 
     while (!should_stop_() && session_->phase() != NaviPhase::Finished && session_->phase() != NaviPhase::Failed) {
         if (!TickPhase(session_->phase())) {
@@ -728,6 +736,10 @@ bool NavigationStateMachine::TickNavigate()
     }
 
     const Waypoint waypoint = session_->CurrentWaypoint();
+    if (TryScanApproachCollect(route, waypoint)) {
+        return true;
+    }
+
     const double arrival_distance =
         waypoint.action == ActionType::PORTAL ? std::max(route.arrival_band, kPortalCommitDistance) : route.arrival_band;
     if (route.waypoint_distance <= arrival_distance) {
@@ -981,6 +993,46 @@ void NavigationStateMachine::SelectPhaseForCurrentWaypoint(const char* reason)
 void NavigationStateMachine::StopMotion()
 {
     motion_controller_->SetForwardState(false);
+}
+
+void NavigationStateMachine::PreWarmCollectOcr()
+{
+    if (maa_context_ == nullptr) {
+        return;
+    }
+
+    const std::vector<Waypoint>& path = session_->original_path();
+    const bool has_collect =
+        std::any_of(path.begin(), path.end(), [](const Waypoint& wp) { return wp.action == ActionType::COLLECT; });
+    if (!has_collect) {
+        return;
+    }
+
+    LogInfo << "Pre-warming collect OCR model before navigation (absorbs one-time cold start while stopped).";
+    MaaContextRunTask(maa_context_, kDefaultCollectEntry, kCollectPrewarmOverride);
+}
+
+bool NavigationStateMachine::TryScanApproachCollect(const RouteTrackingState& route, const Waypoint& waypoint)
+{
+    if (waypoint.action != ActionType::COLLECT) {
+        collect_scan_armed_ = false;
+        return false;
+    }
+    if (maa_context_ == nullptr || !route.startup_motion_confirmed) {
+        return false;
+    }
+
+    if (!collect_scan_armed_) {
+        if (!position_->valid || route.waypoint_distance > kCollectScanApproachBandWu) {
+            return false;
+        }
+        collect_scan_armed_ = true;
+        LogInfo << "Collect overlay armed (range window opened)." << VAR(route.waypoint_distance)
+                << VAR(session_->current_node_idx());
+    }
+
+    MaaContextRunTask(maa_context_, kDefaultCollectEntry, kCollectPipelineOverride);
+    return false;
 }
 
 bool NavigationStateMachine::FailNavigation(

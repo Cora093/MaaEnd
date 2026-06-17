@@ -137,6 +137,10 @@ constexpr const char* kDefaultCollectEntry = "AutoCollectClickStart";
 constexpr const char* kCollectPipelineOverride = R"({"AutoCollectClickEnd":{"next":[]}})";
 constexpr int32_t kCollectPostSleepMs = 80;
 
+constexpr const char* kCollectPrewarmOverride =
+    R"({"AutoCollectClick":{"action":{"type":"DoNothing"},"next":[]},"AutoCollectClickEnd":{"next":[]}})";
+constexpr double kCollectScanApproachBandWu = 20.0;
+
 constexpr const char* kDefaultDigEntry = "AutoCollectDigStart";
 constexpr const char* kDigPipelineOverride = R"({"AutoCollectDigEnd":{"next":[]}})";
 constexpr int32_t kDigPostSleepMs = 80;

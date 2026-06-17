@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <functional>
+#include <string>
 
 #include "nav_run_controller.h"
 #include "navi_controller.h"
@@ -15,6 +16,7 @@ class IActionExecutor;
 class ActionWrapper;
 class MotionController;
 class PositionProvider;
+struct RouteTrackingState;
 
 class NavigationStateMachine
 {
@@ -50,6 +52,9 @@ private:
     void StopMotion();
     bool FailNavigation(const char* reason, const char* log_message, double current_distance, double yaw_error, int64_t stalled_ms);
 
+    bool TryScanApproachCollect(const RouteTrackingState& route, const Waypoint& waypoint);
+    void PreWarmCollectOcr();
+
     const NaviParam& param_;
     ActionWrapper* action_wrapper_;
     PositionProvider* position_provider_;
@@ -62,6 +67,8 @@ private:
     NavigationRuntimeState runtime_state_ {};
     NavRunController nav_run_controller_ {};
     std::chrono::steady_clock::time_point last_global_relocalize_at_ {};
+
+    bool collect_scan_armed_ = false;
 };
 
 } // namespace mapnavigator

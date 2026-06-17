@@ -42,25 +42,6 @@ bool IsBlackScreen(const cv::Mat& image)
     return mean_luma[0] <= 12.0 && stddev_luma[0] <= 10.0 && dark_ratio >= 0.98;
 }
 
-class ScopedImageBuffer
-{
-public:
-    ScopedImageBuffer()
-        : buffer_(MaaImageBufferCreate())
-    {
-    }
-
-    ~ScopedImageBuffer() { MaaImageBufferDestroy(buffer_); }
-
-    ScopedImageBuffer(const ScopedImageBuffer&) = delete;
-    ScopedImageBuffer& operator=(const ScopedImageBuffer&) = delete;
-
-    MaaImageBuffer* Get() const { return buffer_; }
-
-private:
-    MaaImageBuffer* buffer_;
-};
-
 } // namespace
 
 PositionProvider::PositionProvider(MaaController* controller, std::shared_ptr<maplocator::MapLocator> locator)
